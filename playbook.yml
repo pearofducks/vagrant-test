@@ -27,13 +27,15 @@
       - db4-devel
       - libpcap-devel
       - xz-devel
+      - wget
+      - curl
       - tar
       - which
       - vim
 
       # TODO: these hax should be idempotent (if java already the version we care about)
     - name: Download Java
-      command: >
+      shell: >
         wget -q -O {{java_name}} --no-check-certificate --no-cookies --header 'Cookie: oraclelicense=accept-securebackup-cookie' {{java_download_url}}
         creates={{java_name}}
     - name: Install Java
