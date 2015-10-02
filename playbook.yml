@@ -1,0 +1,75 @@
+---
+- hosts: all
+  become: yes
+  become_user: root
+  vars:
+    download_folder: /opt
+    java_download_url: http://download.oracle.com/otn-pub/java/jdk/7u80-b15/jre-7u80-linux-x64.rpm
+    java_name: "{{download_folder}}/jre-7u80-linux-x64.rpm"
+    python_archive: "{{download_folder}}/Python-2.7.tgz"
+    python_download_url: https://www.python.org/ftp/python/2.7/Python-2.7.tgz
+    python_name: "{{download_folder}}/Python-2.7"
+  tasks:
+    - name: get development tools
+      yum: name="@Development tools" state=present update_cache=yes
+
+    - name: get dependencies and utils
+      yum: name={{ item }} state=present
+      with_items:
+      - zlib-devel
+      - openssl-devel
+      - sqlite-devel
+      - bzip2-devel
+      - ncurses-devel
+      - readline-devel
+      - tk-devel
+      - gdbm-devel
+      - db4-devel
+      - libpcap-devel
+      - xz-devel
+      - tar
+      - which
+      - vim
+
+      # TODO: these hax should be idempotent (if java already the version we care about)
+    - name: Download Java
+      command: >
+        wget -q -O {{java_name}} --no-check-certificate --no-cookies --header 'Cookie: oraclelicense=accept-securebackup-cookie' {{java_download_url}}
+        creates={{java_name}}
+    - name: Install Java
+      command: >
+        yum localinstall --assumeyes {{java_name}}
+    - name: Clean up
+      file: state=absent path={{java_name}}
+
+    - name: Check for Python 2.7
+      stat: path=/usr/local/bin/python2.7
+      register: python27
+    - name: Download Python
+      command: >
+        wget -O {{python_archive}} {{python_download_url}}
+        creates={{python_archive}}
+      when: not python27.stat.exists
+    - name: Unpack archive
+      unarchive: src={{python_archive}} dest={{download_folder}} copy=no
+      when: not python27.stat.exists
+    - name: Fix ownership
+      file: state=directory path={{python_name}} owner=root group=root recurse=yes
+      when: not python27.stat.exists
+    - name: Configure
+      command: >
+        ./configure --prefix=/usr/local --enable-unicode=ucs4 --enable-shared LDFLAGS="-Wl,-rpath /usr/local/lib"
+        chdir={{python_name}}
+      when: not python27.stat.exists
+    - name: Make / Make Install-alt
+      shell: >
+        make
+        &&
+        make altinstall
+        chdir={{python_name}}
+      when: not python27.stat.exists
+
+    - name: Python | get setuptools
+      shell: wget https://bootstrap.pypa.io/ez_setup.py -O - | /usr/local/bin/python2.7
+    - name: Python | get pip
+      shell: wget https://bootstrap.pypa.io/get-pip.py -O - | /usr/local/bin/python2.7
